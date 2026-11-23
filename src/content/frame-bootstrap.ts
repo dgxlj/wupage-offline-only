@@ -8,7 +8,7 @@ import { sendRuntimeRequest } from "./runtime";
 import { frameIsRendered, installFrameVisibilityBridge } from "./frame-visibility";
 import { SETTINGS_KEY } from "../shared/defaults";
 import type { ExtensionSettings } from "../shared/types";
-import { initEmbeddedVideoSubtitles } from "./video-bootstrap";
+
 import { observeParagraphMode } from "../shared/paragraph-mode";
 import { supportsHtmlContent } from "../shared/html";
 import { configureElementRules } from "./element-exclusions";
@@ -18,7 +18,7 @@ const scope = globalThis as typeof globalThis & { __wupageFrameBootstrap?: boole
 const visibility = supportsHtmlContent() ? installFrameVisibilityBridge() : { ready: Promise.resolve() };
 if (window !== window.top && supportsHtmlContent() && !scope.__wupageFrameBootstrap) {
   scope.__wupageFrameBootstrap = true;
-  initEmbeddedVideoSubtitles();
+
   const documentKey = createDocumentKey();
   let identify: () => FrameDocumentIdentity = () => ({ documentKey });
   let current: FrameSessionSnapshot | undefined;

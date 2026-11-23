@@ -7,7 +7,11 @@
   },
   "alwaysHideFloatingBallOn": {
     "message": "在 $SITE$ 始终隐藏",
-    "placeholders": { "site": { "content": "$1" } }
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
   },
   "floatingBallExcludedSites": {
     "message": "隐藏悬浮球的网站"
@@ -155,7 +159,7 @@
     "message": "额度和速度取决于连接的服务及设备。官方本地桥接调用在线 API，并非离线推理。默认并发数为 1。"
   },
   "extensionName": {
-    "message": "WuPage 网页翻译"
+    "message": "WuPage（不可说的秘密版）V1.0"
   },
   "extensionDescription": {
     "message": "使用可配置的翻译服务和大语言模型翻译网页、PDF、图片和视频字幕。"
@@ -2525,15 +2529,39 @@
   },
   "modelFileDownloadFailed": {
     "message": "模型文件 $ARG1$ 下载失败（HTTP $ARG2$）。",
-    "placeholders": { "arg1": { "content": "$1" }, "arg2": { "content": "$2" } }
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
   },
   "modelFileDownloadTimedOut": {
     "message": "模型文件 $ARG1$ 下载超时。请检查到 $ARG2$ 的网络连接，或下载文件后离线导入。",
-    "placeholders": { "arg1": { "content": "$1" }, "arg2": { "content": "$2" } }
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
   },
   "modelFileNetworkError": {
     "message": "模型文件 $ARG1$ 下载连接失败，请检查 $ARG2$ 的网络或代理设置。浏览器错误：$ARG3$。",
-    "placeholders": { "arg1": { "content": "$1" }, "arg2": { "content": "$2" }, "arg3": { "content": "$3" } }
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      },
+      "arg3": {
+        "content": "$3"
+      }
+    }
   },
   "theServerResponseDoesNotMatchTheRequested": {
     "message": "模型续传响应不匹配。"
@@ -2658,14 +2686,22 @@
   },
   "colorOpacity": {
     "message": "$ARG1$透明度",
-    "placeholders": { "arg1": { "content": "$1" } }
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
   },
   "overallOpacity": {
     "message": "整体透明度"
   },
   "copyToConfigureColor": {
     "message": "配置$ARG1$：请先复制内置方案",
-    "placeholders": { "arg1": { "content": "$1" } }
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
   },
   "copySchemeBeforeEditing": {
     "message": "内置方案不能直接修改，请先复制方案，再调整颜色和透明度。"
@@ -3608,8 +3644,12 @@
   "translatedPdfReadyWithFontFallback": {
     "message": "译文 PDF 已生成：$ARG1$。有 $ARG2$ 页因字体缺少字符改用图像保存，内容已保留，但这些页面可能无法完整搜索。",
     "placeholders": {
-      "arg1": { "content": "$1" },
-      "arg2": { "content": "$2" }
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
     }
   },
   "theBrowserCouldNotCreateThePdfExport": {

@@ -10,7 +10,6 @@ import { normalizeOcrSettings, ocrSettingsIdentity } from "../shared/ocr-service
 import { positionedLines } from "../ocr/regions";
 import { restoreTextFromAlternative } from "../ocr/text-lines";
 import { translateWithSettings } from "./translation";
-import { DOUBAO_PROTOCOL_VERSION } from "../shared/doubao";
 import { createStatisticsRecorder } from "./statistics";
 import { currentCacheGeneration, writeTranslationCache } from "./translation-cache";
 
@@ -43,7 +42,7 @@ export async function translateImageWithSettings(settings: ExtensionSettings, re
   if (!provider) throw new Error(t("noTranslationServiceIsAvailable"));
   const digest = await sha256(JSON.stringify({ version: 5, modelRevision, provider, target: settings.targetLang,
     source: settings.sourceLang,
-    ...(provider.type === "doubao-web" ? { doubaoProtocolVersion: DOUBAO_PROTOCOL_VERSION, translateService: "1" } : {}), ...request }));
+    ...request }));
   const key = `${CACHE_PREFIX}image.${digest}`;
   const statistics = createStatisticsRecorder(settings);
   // The HTTP identity includes the user-controlled model cache version.

@@ -27,7 +27,7 @@ export function initPageContextMenu(): void {
         title: translated ? t("restoreOriginal") : t("translateFullPage"),
         // 'page' also covers ordinary text in frames. Adding 'frame', 'link' or
         // 'selection' can overlap the image entry and recreate Chrome's submenu.
-        contexts: ["page"], documentUrlPatterns: ["http://*/*", "https://*/*"], visible: enabled
+        contexts: ["page"], documentUrlPatterns: ["http://*/*", "https://*/*", "file:///*"], visible: enabled
       });
     });
     return updates;

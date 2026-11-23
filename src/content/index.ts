@@ -27,7 +27,7 @@ import { executeTranslationShortcut } from "./shortcuts";
 import { initKeyboardShortcuts } from "./keyboard-shortcuts";
 import { installFrameRuntime } from "./frame-runtime";
 import { createDocumentKey } from "../shared/frame-session";
-import { initVideoSubtitles, openVideoSubtitles } from "./video-subtitles";
+
 import { readParagraphMode } from "../shared/paragraph-mode";
 import { supportsHtmlContent } from "../shared/html";
 import { startTouchParagraph } from "./touch-paragraph";
@@ -76,7 +76,7 @@ function initializeContent(): void {
   initializeFeature("automatic translation", initAutoTranslation);
   initializeFeature("selection translation", initSelectionTranslation);
   initializeFeature("shortcuts", () => initKeyboardShortcuts(executeTranslationShortcut));
-  initializeFeature("video subtitles", initVideoSubtitles);
+
 
   // One listener for the saved settings: the appearance revision and the page
   // translation settings must observe the same change, in the same order.
@@ -100,9 +100,7 @@ async function handleMessage(request: RuntimeRequest): Promise<unknown> {
     startTouchParagraph();
     return { started: true };
   }
-  if (request.type === "OPEN_VIDEO_SUBTITLES") {
-    return openVideoSubtitles();
-  }
+
   if (request.type === "EXECUTE_TRANSLATION_SHORTCUT") {
     await executeTranslationShortcut(request.command);
     return { handled: true };

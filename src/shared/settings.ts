@@ -1,16 +1,12 @@
-import { INTERFACE_LANGUAGE_KEY, t, type InterfaceLanguage } from "./i18n";
+import { INTERFACE_LANGUAGE_KEY, type InterfaceLanguage } from "./i18n";
 import { DEFAULT_SETTINGS, SETTINGS_KEY } from "./defaults";
-import { isLlmProvider } from "./performance";
 import { normalizeAutoTranslation, normalizeExcludedSites } from "./auto-translation";
 import { normalizeSelectionTranslation } from "./dictionary";
 import { normalizeAppearance } from "./appearance";
 import { normalizeShortcutEnabled, normalizeShortcuts } from "./shortcuts";
 import { normalizeLocalShortcuts } from "./local-shortcuts";
-import { normalizeServiceConfig, supportsServiceMode } from "./translation-service";
 import { normalizeVideoTranslation } from "./video";
-import { normalizeOcrSettings } from "./ocr-service";
-import { normalizeRequestTemplate, supportsRequestTemplate } from "./request-template";
-import type { ExtensionSettings, ProviderConfig } from "./types";
+import type { ExtensionSettings } from "./types";
 import { normalizeFrameTranslation } from "./frame-session";
 import { ELEMENT_EXCLUSION_DEFAULTS_VERSION, migrateElementExclusionDefaults, normalizeElementInclusions } from "./element-exclusions";
 
@@ -38,283 +34,53 @@ export function saveSettings(
   return write;
 }
 
+/** Migrate old WuPage settings into an offline-only, credential-free configuration. */
 export function normalizeSettings(value: unknown): ExtensionSettings {
   const input = isRecord(value) ? value : {};
-  const chunkSize = clampNumber(input.chunkSize, 200, 4000, DEFAULT_SETTINGS.chunkSize);
-  const concurrency = clampNumber(input.concurrency, 1, 8, DEFAULT_SETTINGS.concurrency);
-  const storedProviders = Array.isArray(input.providers)
-    ? input.providers.filter(isProviderConfig)
-    : [];
-  const requestedId = migrateTranslationApis(storedProviders, readString(input.activeProviderId, DEFAULT_SETTINGS.activeProviderId));
-  const providers = mergeProviders(storedProviders, chunkSize, concurrency);
-  ensureEnabledProvider(providers);
-  const requestedProviderId = requestedId;
-  const activeProviderId =
-    providers.find(
-      (provider) => provider.id === requestedProviderId && provider.enabled !== false
-    )?.id
-    ?? providers.find((provider) => provider.enabled !== false)?.id
-    ?? DEFAULT_SETTINGS.activeProviderId;
-
+  // Exclude obsolete secret-bearing fields before spreading user preferences.
+  const { providers: _unusedProviders, activeProviderId: _unusedProviderId,
+    ocr: _unusedOcr, ...preferences } = input;
+  void _unusedProviders; void _unusedProviderId; void _unusedOcr;
+  const chunkSize = clampNumber(preferences.chunkSize, 200, 4000, DEFAULT_SETTINGS.chunkSize);
+  const concurrency = clampNumber(preferences.concurrency, 1, 8, DEFAULT_SETTINGS.concurrency);
   return {
     ...DEFAULT_SETTINGS,
-    ...input,
-    ...(input.videoTranslation !== undefined ? { videoTranslation: normalizeVideoTranslation(input.videoTranslation) } : {}),
-    providers,
-    elementExclusions: migrateElementExclusionDefaults(input.elementExclusions, input.elementExclusionDefaultsVersion),
-    elementInclusions: normalizeElementInclusions(input.elementInclusions),
+    ...preferences,
+    videoTranslation: { ...normalizeVideoTranslation(preferences.videoTranslation), enabled: false },
+    providers: DEFAULT_SETTINGS.providers.map(p => ({ ...p, enabled: true })),
+    activeProviderId: "firefox-local",
+    ocr: { mode: "builtin", endpoint: "", model: "", apiKey: "", modelRevision: "1" },
+    elementExclusions: migrateElementExclusionDefaults(preferences.elementExclusions, preferences.elementExclusionDefaultsVersion),
+    elementInclusions: normalizeElementInclusions(preferences.elementInclusions),
     elementExclusionDefaultsVersion: ELEMENT_EXCLUSION_DEFAULTS_VERSION,
-    shortcuts: normalizeShortcuts(input.shortcuts),
-    localShortcuts: normalizeLocalShortcuts(input.localShortcuts),
-    shortcutEnabled: normalizeShortcutEnabled(input.shortcutEnabled, input.shortcuts, input.localShortcuts),
-    appearance: normalizeAppearance(input.appearance),
-    autoTranslation: normalizeAutoTranslation(input.autoTranslation),
-    floatingBallExcludedSites: normalizeExcludedSites(input.floatingBallExcludedSites),
-    frameTranslation: normalizeFrameTranslation(input.frameTranslation),
-    selectionTranslation: normalizeSelectionTranslation(input.selectionTranslation),
-    targetLang: readString(input.targetLang, DEFAULT_SETTINGS.targetLang),
-    sourceLang: readString(input.sourceLang, DEFAULT_SETTINGS.sourceLang),
-    activeProviderId,
-    chunkSize,
-    concurrency,
-    pdfTranslationPageRadius: input.pdfTranslationPageRadius === null
-      ? null
-      : clampNumber(input.pdfTranslationPageRadius, 0, 1000, DEFAULT_SETTINGS.pdfTranslationPageRadius!),
-    cacheEnabled:
-      typeof input.cacheEnabled === "boolean"
-        ? input.cacheEnabled
-        : DEFAULT_SETTINGS.cacheEnabled,
-    floatingBallEnabled:
-      typeof input.floatingBallEnabled === "boolean"
-        ? input.floatingBallEnabled
-        : DEFAULT_SETTINGS.floatingBallEnabled,
-    translateCodeComments:
-      typeof input.translateCodeComments === "boolean"
-        ? input.translateCodeComments
-        : DEFAULT_SETTINGS.translateCodeComments,
-    imageTranslationEnabled: input.imageTranslationEnabled === true,
-    imageTranslationContextMenuEnabled: input.imageTranslationContextMenuEnabled !== false,
-    imageTranslationFloatingEnabled: input.imageTranslationFloatingEnabled !== false,
-    ...(input.ocr !== undefined ? { ocr: normalizeOcrSettings(input.ocr) } : {}),
-    statisticsEnabled: input.statisticsEnabled === true,
-    contextMenuTranslationEnabled: input.contextMenuTranslationEnabled === true,
-    translationDisplayMode: isTranslationDisplayMode(input.translationDisplayMode)
-      ? input.translationDisplayMode
-      : DEFAULT_SETTINGS.translationDisplayMode
+    shortcuts: normalizeShortcuts(preferences.shortcuts),
+    localShortcuts: normalizeLocalShortcuts(preferences.localShortcuts),
+    shortcutEnabled: normalizeShortcutEnabled(preferences.shortcutEnabled, preferences.shortcuts, preferences.localShortcuts),
+    appearance: normalizeAppearance(preferences.appearance),
+    autoTranslation: normalizeAutoTranslation(preferences.autoTranslation),
+    floatingBallExcludedSites: normalizeExcludedSites(preferences.floatingBallExcludedSites),
+    frameTranslation: normalizeFrameTranslation(preferences.frameTranslation),
+    selectionTranslation: normalizeSelectionTranslation(preferences.selectionTranslation),
+    targetLang: readString(preferences.targetLang, DEFAULT_SETTINGS.targetLang),
+    sourceLang: readString(preferences.sourceLang, DEFAULT_SETTINGS.sourceLang),
+    chunkSize, concurrency,
+    pdfTranslationPageRadius: preferences.pdfTranslationPageRadius === null ? null
+      : clampNumber(preferences.pdfTranslationPageRadius, 0, 1000, DEFAULT_SETTINGS.pdfTranslationPageRadius!),
+    cacheEnabled: typeof preferences.cacheEnabled === "boolean" ? preferences.cacheEnabled : DEFAULT_SETTINGS.cacheEnabled,
+    floatingBallEnabled: typeof preferences.floatingBallEnabled === "boolean" ? preferences.floatingBallEnabled : DEFAULT_SETTINGS.floatingBallEnabled,
+    translateCodeComments: typeof preferences.translateCodeComments === "boolean" ? preferences.translateCodeComments : DEFAULT_SETTINGS.translateCodeComments,
+    imageTranslationEnabled: preferences.imageTranslationEnabled === true,
+    imageTranslationContextMenuEnabled: preferences.imageTranslationContextMenuEnabled !== false,
+    imageTranslationFloatingEnabled: preferences.imageTranslationFloatingEnabled !== false,
+    statisticsEnabled: preferences.statisticsEnabled === true,
+    contextMenuTranslationEnabled: preferences.contextMenuTranslationEnabled === true,
+    translationDisplayMode: isTranslationDisplayMode(preferences.translationDisplayMode)
+      ? preferences.translationDisplayMode : DEFAULT_SETTINGS.translationDisplayMode
   };
-}
-
-function migrateTranslationApis(providers: ProviderConfig[], activeId: string): string {
-  const aliases = [
-    { old: "microsoft-translator", current: "microsoft-web-translate" },
-    { old: "google-cloud-translation", current: "google-web-translate" }
-  ];
-  for (const alias of aliases) {
-    const index = providers.findIndex(provider => provider.id === alias.old && provider.type === alias.old);
-    if (index < 0) continue;
-    const old = providers[index];
-    if (old.type !== "microsoft-translator" && old.type !== "google-cloud-translation") continue;
-    const current = providers.find(provider => provider.id === alias.current)
-      ?? DEFAULT_SETTINGS.providers.find(provider => provider.id === alias.current)!;
-    if (!supportsServiceMode(current)) continue;
-    // Retain separately configured subscriptions when merging would lose either credential.
-    if (current.api?.apiKey && (current.api.apiKey !== old.apiKey || old.type === "microsoft-translator"
-      && ((current.api.endpoint || "https://api.cognitive.microsofttranslator.com") !== old.endpoint
-        || (current.api.region || "") !== old.region))) continue;
-    providers.splice(index, 1);
-    const configured = old.apiKey || old.id === activeId || old.type === "microsoft-translator"
-      && (old.region || old.endpoint !== "https://api.cognitive.microsofttranslator.com");
-    const api = configured ? {
-      ...current.api, apiKey: old.apiKey,
-      ...(old.type === "microsoft-translator" ? { endpoint: old.endpoint, region: old.region } : {})
-    } : current.api;
-    const replacement = { ...current, api,
-      ...(old.id === activeId ? { serviceMode: "api" as const, enabled: old.enabled, label: old.label } : {}) };
-    const currentIndex = providers.findIndex(provider => provider.id === alias.current);
-    if (currentIndex < 0) providers.push(replacement);
-    else providers[currentIndex] = replacement;
-    if (old.id === activeId) activeId = alias.current;
-  }
-  return activeId;
 }
 
 function isTranslationDisplayMode(value: unknown): value is ExtensionSettings["translationDisplayMode"] {
   return value === "replace" || value === "bilingual" || value === "bilingual-accent";
-}
-
-function mergeProviders(
-  storedProviders: ProviderConfig[],
-  globalChunkSize: number,
-  globalConcurrency: number
-): ProviderConfig[] {
-  const byId = new Map(
-    DEFAULT_SETTINGS.providers.map((provider) => [
-      provider.id,
-      normalizeProvider(provider, globalChunkSize, globalConcurrency)
-    ])
-  );
-  for (const provider of storedProviders) {
-    byId.set(provider.id, normalizeProvider(provider, globalChunkSize, globalConcurrency));
-  }
-  return Array.from(byId.values());
-}
-
-function normalizeProvider(
-  provider: ProviderConfig,
-  globalChunkSize: number,
-  globalConcurrency: number
-): ProviderConfig {
-  if (provider.type === "doubao-web") {
-    return {
-      type: "doubao-web",
-      id: provider.id,
-      label: provider.id === "doubao-web" && ["豆包（网页登录，实验）", "豆包（实验性）", "Doubao (experimental)"].includes(provider.label)
-        ? t("doubaoExperimental") : provider.label,
-      enabled: provider.enabled !== false,
-      performanceMode: "custom",
-      chunkSize: 1200,
-      concurrency: 1
-    };
-  }
-  if (supportsServiceMode(provider)) provider = normalizeServiceConfig(provider);
-  const builtInLabels: Record<string, string[]> = {
-    "microsoft-web-translate": ["Microsoft 翻译", "Microsoft 免费翻译", "Microsoft Translator API（Azure）", "Microsoft Translator"],
-    "google-web-translate": ["Google 翻译", "Google Translate", "Google Web Translate", "Google Cloud Translation"],
-    "tencent-transmart": ["腾讯翻译", "Tencent Translate", "腾讯 TranSmart"],
-    "yandex-web-translate": ["Yandex 翻译", "Yandex Translate", "Yandex 免费翻译"],
-    "volcengine-web-translate": ["火山翻译", "Volcengine Translate", "火山免费翻译"],
-    "firefox-local": ["Firefox 本地翻译（实验）", "Firefox local translation (experimental)"]
-  };
-  if (builtInLabels[provider.id]?.includes(provider.label)) {
-    provider = { ...provider, label: DEFAULT_SETTINGS.providers.find(entry => entry.id === provider.id)!.label };
-  }
-  if (provider.customModels !== undefined) {
-    provider = { ...provider, customModels: Array.isArray(provider.customModels)
-      ? [...new Set(provider.customModels.filter((model): model is string => typeof model === "string")
-        .map((model) => model.trim()).filter(Boolean))]
-      : [] };
-  }
-  if (provider.type === "microsoft-translator" && provider.id === "microsoft-translator"
-    && provider.label === "Microsoft Translator") {
-    provider = { ...provider, label: "Microsoft Translator API（Azure）" };
-  }
-  if (provider.type === "deepseek"
-    && (provider.model === "deepseek-v4-flash" || provider.model === "deepseek-v4-flash-vision-exp")) {
-    provider = { ...provider, model: "deepseek-flash" };
-  }
-  if (provider.type === "openai-compatible") {
-    provider = {
-      ...provider,
-      ollamaCompatibility: provider.ollamaCompatibility !== false
-    };
-  }
-  if (supportsRequestTemplate(provider)) {
-    provider = { ...provider, requestTemplate: normalizeRequestTemplate(provider.requestTemplate) };
-  }
-  const legacyPerformance = provider.performanceMode === undefined;
-  const performanceMode = provider.performanceMode === "custom"
-    || (legacyPerformance && isLlmProvider(provider))
-    ? "custom"
-    : "inherit";
-  if (performanceMode === "inherit") {
-    return {
-      ...provider,
-      enabled: provider.enabled !== false,
-      performanceMode,
-      chunkSize: undefined,
-      concurrency: undefined
-    };
-  }
-  return {
-    ...provider,
-    enabled: provider.enabled !== false,
-    performanceMode,
-    chunkSize: clampNumber(
-      provider.chunkSize,
-      200,
-      4000,
-      legacyPerformance && isLlmProvider(provider) ? Math.max(3200, globalChunkSize) : globalChunkSize
-    ),
-    concurrency: clampNumber(provider.concurrency, 1, 8, globalConcurrency)
-  };
-}
-
-function ensureEnabledProvider(providers: ProviderConfig[]): void {
-  if (providers.some((provider) => provider.enabled !== false)) return;
-  const fallback = providers.find((provider) => provider.id === DEFAULT_SETTINGS.activeProviderId)
-    ?? providers[0];
-  if (fallback) fallback.enabled = true;
-}
-
-function isProviderConfig(value: unknown): value is ProviderConfig {
-  if (!isRecord(value)) return false;
-  if (value.enabled !== undefined && typeof value.enabled !== "boolean") return false;
-  if (
-    value.performanceMode !== undefined
-    && value.performanceMode !== "inherit"
-    && value.performanceMode !== "custom"
-  ) return false;
-  if (value.chunkSize !== undefined && typeof value.chunkSize !== "number") return false;
-  if (value.concurrency !== undefined && typeof value.concurrency !== "number") return false;
-  if (value.type === "google-web-translate" || value.type === "microsoft-web-translate"
-    || value.type === "tencent-transmart" || value.type === "yandex-web-translate"
-    || value.type === "volcengine-web-translate" || value.type === "mymemory"
-    || value.type === "firefox-local" || value.type === "doubao-web") {
-    return ["id", "label"].every((key) => typeof value[key] === "string");
-  }
-
-  if (value.type === "microsoft-translator") {
-    return ["id", "label", "endpoint", "apiKey", "region"].every((key) =>
-      typeof value[key] === "string"
-    );
-  }
-
-  if (value.type === "deepl") {
-    return ["id", "label", "endpoint", "apiKey"].every((key) => typeof value[key] === "string");
-  }
-
-  if (value.type === "google-cloud-translation") {
-    return ["id", "label", "apiKey"].every((key) => typeof value[key] === "string");
-  }
-
-  if (value.type === "openai-compatible" || value.type === "index-translate") {
-    return ["id", "label", "baseURL", "apiKey", "model", "systemPrompt"].every((key) =>
-      typeof value[key] === "string"
-    );
-  }
-
-  if (value.type === "anthropic-compatible") {
-    return ["id", "label", "baseURL", "apiKey", "model", "systemPrompt"].every((key) =>
-      typeof value[key] === "string"
-    );
-  }
-
-  if (value.type === "deepseek") {
-    return ["id", "label", "baseURL", "apiKey", "model", "systemPrompt"].every((key) =>
-      typeof value[key] === "string"
-    );
-  }
-
-  if (value.type === "zhipu-glm") {
-    return ["id", "label", "baseURL", "apiKey", "model", "systemPrompt"].every((key) =>
-      typeof value[key] === "string"
-    );
-  }
-
-  if (value.type === "http-template") {
-    return (
-      typeof value.id === "string" &&
-      typeof value.label === "string" &&
-      (value.method === "GET" || value.method === "POST") &&
-      typeof value.url === "string" &&
-      isRecord(value.headers) &&
-      Object.values(value.headers).every((entry) => typeof entry === "string") &&
-      typeof value.bodyTemplate === "string" &&
-      typeof value.responsePath === "string"
-    );
-  }
-
-  return false;
 }
 
 function readString(value: unknown, fallback: string): string {

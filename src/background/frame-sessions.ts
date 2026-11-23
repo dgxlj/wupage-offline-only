@@ -366,8 +366,8 @@ export class FrameSessionManager {
     }
     for (let index = 0; index < chain.length; index++) {
       const ancestor = chain[index];
-      const effectiveUrl = /^https?:/u.test(ancestor.url) ? ancestor.url
-        : chain.slice(index + 1).find(item => /^https?:/u.test(item.url))?.url ?? tab.topUrl;
+      const effectiveUrl = /^(?:https?|file):/u.test(ancestor.url) ? ancestor.url
+        : chain.slice(index + 1).find(item => /^(?:https?|file):/u.test(item.url))?.url ?? tab.topUrl;
       const reason = frameExclusion(tab.settings, tab.topUrl, effectiveUrl, ancestor.frameId);
       if (reason) return index ? t("parentFrameExcluded", reason) : reason;
     }

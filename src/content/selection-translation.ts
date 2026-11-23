@@ -1,7 +1,7 @@
 import { t } from "../shared/i18n";
 import { SETTINGS_KEY } from "../shared/defaults";
-import { DICTIONARY_LABELS, MAX_SELECTION_TEXT_LENGTH, dictionaryProviderForQuery, dictionarySourceUrl, isChineseDictionaryQuery, isSingleDictionaryWord, normalizeSelectionText, normalizeSelectionTranslation,
-  type DictionaryEntry, type DictionaryProvider, type SelectionTranslationSettings } from "../shared/dictionary";
+import { DICTIONARY_LABELS, MAX_SELECTION_TEXT_LENGTH, dictionaryProviderForQuery, isChineseDictionaryQuery, normalizeSelectionText, normalizeSelectionTranslation,
+  type DictionaryProvider, type SelectionTranslationSettings } from "../shared/dictionary";
 import type { ExtensionSettings, TranslateBatchResponse } from "../shared/types";
 import { sendRuntimeRequest } from "./runtime";
 import { SELECTION_TRANSLATION_STYLES } from "./selection-translation-styles";
@@ -10,7 +10,7 @@ import { formatLocalShortcut, matchesLocalShortcut, normalizeLocalShortcuts } fr
 import { uiIconMarkup } from "../shared/ui-icons";
 import { setHtmlContent } from "../shared/html";
 import { hasTouchInput, visibleViewport } from "../shared/touch";
-import { captureSelectionSource, isEditorSelection, replaceSelectionSource, selectionReplacementAvailable,
+import { captureSelectionSource, replaceSelectionSource, selectionReplacementAvailable,
   selectionSourceConnected, selectionSourceRects, selectionSourceUnchanged, type SelectionSource } from "./selection-source";
 
 const HOST_ID = "wupage-selection-tools";
@@ -41,8 +41,6 @@ export class SelectionTranslationController {
   private replacementInvalidated = false;
   private query = "";
   private version = 0;
-  private audioVersion = 0;
-  private audioRequested = false;
   private selecting = false;
   private touchSelection = hasTouchInput();
   private disposed = false;
@@ -107,7 +105,7 @@ export class SelectionTranslationController {
       option.value = provider; option.textContent = DICTIONARY_LABELS[provider];
       this.providerSelect.append(option);
     }
-    this.providerSelect.addEventListener("change", () => this.submitEditedText());
+    this.providerSelect.hidden = true; // No online dictionaries in this edition.
     this.translationService = document.createElement("span");
     this.translationService.className = "translation-service";
     this.translationService.hidden = true;
@@ -134,6 +132,7 @@ export class SelectionTranslationController {
     this.audioStatus = document.createElement("span");
     this.audioStatus.setAttribute("role", "status");
     this.source = document.createElement("a");
+    this.source.hidden = true;
     this.source.target = "_blank";
     this.source.rel = "noopener noreferrer";
     this.footer.append(this.audioStatus, this.source);
@@ -334,7 +333,8 @@ export class SelectionTranslationController {
     this.sourceError.textContent = "";
     this.word.removeAttribute("aria-invalid");
     this.body.hidden = false;
-    let translating = forceTranslation || this.usesTranslation(this.query);
+    let translating = true;
+    void forceTranslation;
     this.setTranslationMode(translating);
     const chinese = isChineseDictionaryQuery(this.query);
     provider = dictionaryProviderForQuery(provider, this.query);
@@ -343,20 +343,16 @@ export class SelectionTranslationController {
     this.providerSelect.value = provider;
     this.word.value = this.query;
     this.word.lang = chinese ? "zh-CN" : "";
-    this.source.href = dictionarySourceUrl(provider, this.query);
-    this.source.textContent = t("viewIn", DICTIONARY_LABELS[provider]);
+    this.source.removeAttribute("href");
+    this.source.textContent = "";
     this.body.textContent = translating ? t("translationInProgress") : t("lookingUp");
     this.body.setAttribute("aria-busy", "true");
     this.resizeSourceEditor();
     if (!this.positionCard()) { this.close(); return; }
     if (focus) this.card.focus({ preventScroll: true });
     try {
-      if (translating) { await this.translateSelection(version); return; }
-      const entry = await sendRuntimeRequest<DictionaryEntry>({ type: "LOOKUP_DICTIONARY", provider, query: this.query });
-      if (!this.canRender(version)) return;
-      if (entry.meanings.some(meaning => meaning.definition.trim())
-        || (chinese && entry.pronunciations.some(item => item.phonetic?.trim()))) this.renderEntry(entry, version);
-      else { translating = true; await this.translateSelection(version); }
+      await this.translateSelection(version);
+      return;
     } catch (error) {
       if (version !== this.version || this.disposed) return;
       this.body.replaceChildren();
@@ -449,7 +445,8 @@ export class SelectionTranslationController {
   }
 
   private usesTranslation(query: string): boolean {
-    return !!this.selection && isEditorSelection(this.selection) || !isSingleDictionaryWord(query);
+    void query;
+    return true;
   }
 
   private resetTranslation(): void {
@@ -486,74 +483,7 @@ export class SelectionTranslationController {
     return message;
   }
 
-  private renderEntry(entry: DictionaryEntry, version: number): void {
-    this.word.value = entry.word;
-    this.resizeSourceEditor();
-    this.body.replaceChildren();
-    const phonetics = document.createElement("div");
-    phonetics.className = "phonetics";
-    for (const pronunciation of entry.pronunciations) {
-      const line = document.createElement("div");
-      const accent = pronunciation.accent === "uk" ? t("ukAccent") : pronunciation.accent === "us" ? t("us") : pronunciation.accent === "pinyin" ? t("pinyin") : t("pronunciation");
-      const label = document.createElement("span");
-      label.textContent = `${accent} ${pronunciation.phonetic ? pronunciation.accent === "uk" || pronunciation.accent === "us" ? `/${pronunciation.phonetic}/` : pronunciation.phonetic : ""}`;
-      if (pronunciation.accent === "pinyin") label.lang = "zh-Latn-pinyin";
-      line.append(label);
-      if (pronunciation.audioUrl) {
-        const button = document.createElement("button");
-        button.type = "button"; button.className = "speak"; setHtmlContent(button, uiIconMarkup("volume"));
-        const voice = pronunciation.accent === "pinyin" ? t("chinese") : pronunciation.accent === "default" ? t("word") : t("accentPronunciationType", accent);
-        button.setAttribute("aria-label", t("playPronunciation", voice));
-        button.addEventListener("click", () => { void this.play(entry.provider, pronunciation.audioUrl!, button, version); });
-        line.append(button);
-      }
-      phonetics.append(line);
-    }
-    if (phonetics.childElementCount) this.body.append(phonetics);
-    const meanings = document.createElement("ul");
-    meanings.className = "meanings";
-    for (const meaning of entry.meanings) {
-      const item = document.createElement("li");
-      const pos = document.createElement("span");
-      pos.className = "part-of-speech"; pos.textContent = meaning.partOfSpeech;
-      const definition = document.createElement("span");
-      if (meaning.pronunciation) {
-        const reading = document.createElement("span");
-        reading.className = "meaning-pronunciation"; reading.lang = "zh-Latn-pinyin";
-        reading.textContent = meaning.pronunciation;
-        definition.append(reading);
-      }
-      definition.append(document.createTextNode(meaning.definition));
-      item.append(pos, definition); meanings.append(item);
-    }
-    if (meanings.childElementCount) this.body.append(meanings);
-    else {
-      const empty = document.createElement("p"); empty.className = "notice";
-      empty.textContent = isChineseDictionaryQuery(this.query) ? t("noDefinitionsFoundViewTheDictionaryWebsite") : t("noDefinitionsFoundSwitchDictionariesOrViewThe");
-      this.body.append(empty);
-    }
-  }
-
-  private async play(provider: DictionaryProvider, url: string, button: HTMLButtonElement, version: number): Promise<void> {
-    const audioVersion = ++this.audioVersion;
-    this.audioRequested = true;
-    button.disabled = true;
-    this.audioStatus.textContent = t("loadingPronunciation");
-    try {
-      await sendRuntimeRequest({ type: "PLAY_DICTIONARY_AUDIO", provider, url });
-      if (version === this.version && audioVersion === this.audioVersion) this.audioStatus.textContent = "";
-    } catch (error) {
-      if (version === this.version && audioVersion === this.audioVersion) this.audioStatus.textContent = this.errorMessage(error);
-    } finally { button.disabled = false; }
-  }
-
-  private stopAudio(): void {
-    this.audioVersion++;
-    this.audioStatus.textContent = "";
-    if (!this.audioRequested) return;
-    this.audioRequested = false;
-    void sendRuntimeRequest({ type: "STOP_DICTIONARY_AUDIO" }).catch(() => undefined);
-  }
+  private stopAudio(): void { this.audioStatus.textContent = ""; }
 
   private positionCard(): boolean {
     const rects = this.rects();

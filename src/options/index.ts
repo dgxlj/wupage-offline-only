@@ -4,8 +4,8 @@ import { normalizeFrameTranslation } from "../shared/frame-session";
 import { SOURCE_LANGUAGES, TARGET_LANGUAGES } from "../shared/languages";
 import { TRANSLATION_DISPLAY_MODES } from "../shared/display-modes";
 import { sendRuntimeMessage } from "../shared/messaging";
-import type { DoubaoStatus, ExtensionSettings, ProviderConfig, TranslationApiOptions } from "../shared/types";
-import { supportsServiceMode, translationApiOptions } from "../shared/translation-service";
+import type { ExtensionSettings, ProviderConfig, TranslationApiOptions } from "../shared/types";
+import { supportsServiceMode } from "../shared/translation-service";
 import "./styles.css";
 import { setImageTranslationToggle } from "../shared/ocr-control";
 import { setupOcrSettings } from "./ocr-service";
@@ -24,9 +24,8 @@ import "../shared/appearance.css";
 import { normalizeSelectionTranslation, type DictionaryProvider, type SelectionTriggerStyle } from "../shared/dictionary";
 import { RequestTemplateError, supportsRequestTemplate, validateRequestTemplate } from "../shared/request-template";
 import { readRequestTemplate, setupProviderTabs } from "./provider-advanced";
-import { isDoubaoBrowserSupported } from "../shared/doubao";
-import { formatDoubaoStatus, isDoubaoProviderUnavailable, syncDoubaoTargetControls } from "../shared/doubao-ui";
-import { renderUiIcons, uiIconMarkup } from "../shared/ui-icons";
+import { syncDoubaoTargetControls } from "../shared/doubao-ui";
+import { renderUiIcons } from "../shared/ui-icons";
 import { setupSettingsBackupControls } from "./settings-backup";
 import { setupSettingsResetControls } from "./reset-settings";
 import { ACTION_STATUS_DURATION, setupSettingsActionFeedback } from "./action-feedback";
@@ -78,10 +77,7 @@ const customModelName = query<HTMLInputElement>("#customModelName");
 const providerDialog = query<HTMLDialogElement>("#providerDialog");
 const providerDialogForm = query<HTMLFormElement>("#providerDialogForm");
 const cancelProviderButton = query<HTMLButtonElement>("#cancelProvider");
-const customProviderName = query<HTMLInputElement>("#customProviderName");
 const customProviderKind = query<HTMLSelectElement>("#customProviderKind");
-const customLlmFormatField = query<HTMLLabelElement>("#customLlmFormatField");
-const customLlmFormat = query<HTMLSelectElement>("#customLlmFormat");
 const saveButton = query<HTMLButtonElement>("#save");
 const status = query<HTMLParagraphElement>("#status");
 const autoTranslationControls = setupAutoTranslationControls(
@@ -111,9 +107,6 @@ const DEEPSEEK_MODEL_OPTIONS = [
   "deepseek-flash",
   "deepseek-v4-pro"
 ];
-const DEFAULT_LLM_PROMPT =
-  "You are a translation engine. Translate each input item into {{targetLang}}. Preserve meaning, numbers, links, code-like tokens, placeholders like ⟪WUPAGE0⟫, and formatting. Return only a JSON array of strings in the same order.";
-
 let settings: ExtensionSettings;
 let savedSettings: ExtensionSettings;
 let providerFormSettings: ProviderConfig | undefined;
@@ -121,10 +114,6 @@ let editingProviderId: string | undefined;
 let disposeLocalControl: (() => void) | undefined;
 let activeProviderTest: { providerId: string; status: HTMLElement; message: string } | undefined;
 let providerFormVersion = 0;
-let doubaoStatus: DoubaoStatus = { state: "unknown" };
-let doubaoCheck: Promise<void> | undefined;
-let doubaoStatusRevision = 0;
-let doubaoRetryTimer: ReturnType<typeof setTimeout> | undefined;
 let statusTimer: ReturnType<typeof setTimeout> | undefined;
 const pendingSettingsWrites = new Set<Promise<void>>();
 let optionsClosed = false;
@@ -132,7 +121,6 @@ let ocrSettingsControls: ReturnType<typeof setupOcrSettings> | undefined;
 
 window.addEventListener("pagehide", () => {
   optionsClosed = true;
-  clearTimeout(doubaoRetryTimer);
   clearTimeout(statusTimer);
 }, { once: true });
 
@@ -167,7 +155,8 @@ async function init(): Promise<void> {
     setStatus(t("couldNotConnectToThePageRefreshIt"));
   }
 
-  providerTrigger.addEventListener("click", () => setProviderMenuOpen(providerMenu.hidden));
+  providerTrigger.addEventListener("click", () => setProviderMenuOpen(false));
+  providerTrigger.disabled = true; // Only local Bergamot is available.
   providerMenu.addEventListener("click", (event) => {
     const button = event.target instanceof Element
       ? event.target.closest<HTMLButtonElement>("button[data-action]")
@@ -175,6 +164,8 @@ async function init(): Promise<void> {
     if (!button) return;
     void handleProviderAction(button.dataset.action ?? "", button.dataset.providerId ?? "");
   });
+  addProviderButton.hidden = true;
+  addProviderButton.disabled = true;
   addProviderButton.addEventListener("click", openProviderDialog);
   cancelProviderButton.addEventListener("click", () => providerDialog.close());
   customProviderKind.addEventListener("change", updateCustomProviderFields);
@@ -320,280 +311,23 @@ function renderProviderPicker(keepOpen: boolean): void {
 }
 
 function renderProviderMenuRow(provider: ProviderConfig): string {
-  const enabled = provider.enabled !== false;
-  const unavailable = isDoubaoProviderUnavailable(provider);
-  const builtIn = BUILT_IN_PROVIDER_IDS.has(provider.id);
-  return `
-    <div class="provider-menu-row" data-built-in="${builtIn}" role="group">
-      <button
-        class="provider-option"
-        type="button"
-        role="option"
-        data-action="select"
-        data-provider-id="${escapeAttr(provider.id)}"
-        aria-selected="${provider.id === editingProviderId}"
-        data-enabled="${enabled}"
-        ${unavailable ? "disabled" : ""}
-        title="${unavailable ? t("doubaoTranslationIsUnavailableInThisBrowser") : `${escapeAttr(provider.label)}${enabled ? "" : t("disabledEditable")}`}"
-      >
-        ${providerIconMarkup(provider)}
-        <span class="provider-option-label">${escapeHtml(provider.label)}</span>
-      </button>
-      <button
-        class="provider-enable"
-        type="button"
-        data-action="toggle"
-        data-provider-id="${escapeAttr(provider.id)}"
-        aria-pressed="${enabled}"
-        title="${enabled ? t("disable") : t("enable")} ${escapeAttr(provider.label)}"
-        aria-label="${enabled ? t("disable") : t("enable")} ${escapeAttr(provider.label)}"
-      ></button>
-      ${builtIn ? "" : `
-        <button
-          class="provider-delete"
-          type="button"
-          data-action="delete"
-          data-provider-id="${escapeAttr(provider.id)}"
-          title="${htmlMessage("delete", provider.label)}"
-          aria-label="${htmlMessage("delete", provider.label)}"
-        >${uiIconMarkup("trash")}</button>
-      `}
-    </div>
-  `;
+  return `<div class="provider-menu-row"><button class="provider-option" type="button" role="option"
+     data-action="select" data-provider-id="${escapeAttr(provider.id)}" aria-selected="true">
+     ${providerIconMarkup(provider)}<span class="provider-option-label">${escapeHtml(provider.label)}</span>
+     </button></div>`;
 }
 
 function renderProviderForm(rebuildPerformance = true): void {
   invalidateProviderTest();
-  const version = ++providerFormVersion;
-  clearTimeout(doubaoRetryTimer);
+  ++providerFormVersion;
   disposeLocalControl?.(); disposeLocalControl = undefined;
   const provider = getEditingProvider();
   providerFormSettings = structuredClone(provider);
   if (rebuildPerformance) renderProviderPerformanceControls(provider);
-  syncDoubaoTargetControls(settings, targetLang);
-  if (provider.type === "doubao-web") {
-    setProviderFormMarkup(provider, `
-      <div class="grid"><label>${htmlMessage("displayName")} <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label></div>
-      <div class="doubao-setup">
-        <h3>${htmlMessage("doubaoExperimental")}</h3>
-        <p>${htmlMessage("signInToDoubaoInThisBrowserTo")}</p>
-        <p>${htmlMessage("translationSendsYourSourceTextToDoubaoThe")}</p>
-        <div class="doubao-actions">
-          <button type="button" data-action="open-doubao">${htmlMessage("openDoubaoAndSignIn")}</button>
-          <button id="test" type="button" data-action="check-doubao">${htmlMessage("checkAgain")}</button>
-        </div>
-        <p data-role="doubao-status" role="status" aria-live="polite"></p>
-        <p class="hint">${htmlMessage("ifYourSessionExpiresSignInAgainAnd")}</p>
-      </div>`);
-    providerForm.querySelector<HTMLButtonElement>("[data-action='open-doubao']")?.addEventListener("click", () => {
-      void chrome.tabs.create({ url: "https://www.doubao.com/" }).catch((error: unknown) => setStatus(error instanceof Error ? error.message : String(error)));
-    });
-    if (!isDoubaoBrowserSupported()) doubaoStatus = { state: "unsupported-browser" };
-    renderDoubaoStatus();
-    if (isDoubaoBrowserSupported() && !doubaoCheck) {
-      const revision = doubaoStatusRevision;
-      void sendRuntimeMessage<DoubaoStatus>({ type: "GET_DOUBAO_STATUS" }).then((result) => {
-        if (version !== providerFormVersion || revision !== doubaoStatusRevision || !result) return;
-        doubaoStatus = result;
-        renderDoubaoStatus();
-      }).catch(() => { /* Keep the actionable initial state if the background is restarting. */ });
-    }
-    return;
-  }
-  if (provider.type === "firefox-local") {
-    setProviderFormMarkup(provider, `<div class="grid"><label>${htmlMessage("displayName")} <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label></div><div data-local-model-control></div>`);
-    updateLocalControl();
-    return;
-  }
-  if (supportsServiceMode(provider)) {
-    const api = translationApiOptions(provider);
-    const fields = provider.type === "microsoft-web-translate"
-      ? [["endpoint", "Endpoint", "url"], ["apiKey", "API Key", "password"], ["region", t("azureRegionOptional"), "text"]]
-      : provider.type === "tencent-transmart"
-        ? [["endpoint", "Base URL", "url"], ["apiKey", "TokenHub API Key", "password"], ["model", t("translationModel"), "text"]]
-        : provider.type === "yandex-web-translate"
-          ? [["apiKey", "Yandex Cloud API Key", "password"], ["folderId", t("folderIdIfRequiredByYourAccount"), "text"]]
-          : provider.type === "volcengine-web-translate"
-            ? [["accessKeyId", "Access Key ID", "password"], ["secretAccessKey", "Secret Access Key", "password"], ["region", t("region"), "text"]]
-            : [["apiKey", provider.type === "mymemory" ? "RapidAPI Key" : "Google Cloud API Key", "password"]];
-    const apiLabel = { "microsoft-web-translate": "Microsoft Translator API（Azure）", "google-web-translate": "Google Cloud Translation API",
-      "tencent-transmart": t("tencentTokenhubTranslationApi"), "yandex-web-translate": "Yandex Cloud Translate API",
-      "volcengine-web-translate": t("volcengineMachineTranslationApi"), "mymemory": "MyMemory（RapidAPI）" }[provider.type];
-    setProviderFormMarkup(provider, `
-      <div class="grid">
-        <label>${htmlMessage("displayName")} <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label>
-        <label>${htmlMessage("serviceMode")} <select data-field="serviceMode" aria-controls="translationApiFields">
-          <option value="free" ${provider.serviceMode !== "api" ? "selected" : ""}>${htmlMessage("freeServiceDefault")}</option>
-          <option value="api" ${provider.serviceMode === "api" ? "selected" : ""}>${htmlMessage("apiServiceOwnCredentials")}</option>
-        </select></label>
-      </div>
-      <div id="translationApiFields" ${provider.serviceMode !== "api" ? "hidden" : ""}>
-        <p class="hint">${htmlMessage("yourProviderDeterminesQuotaAndPricingSwitchingBack", apiLabel)}</p>
-        <div class="grid">${fields.map(([name, label, type]) => `<label>${label}<input data-api-field="${name}" type="${type}" value="${escapeAttr(api[name as keyof TranslationApiOptions] ?? "")}" autocomplete="off" /></label>`).join("")}</div>
-      </div>
-    `);
-    providerForm.querySelector<HTMLSelectElement>("[data-field='serviceMode']")!.addEventListener("change", event => {
-      const useApi = (event.target as HTMLSelectElement).value === "api";
-      providerForm.querySelector<HTMLElement>("#translationApiFields")!.hidden = !useApi;
-    });
-    return;
-  }
-
-  if (provider.type === "deepl") {
-    setProviderFormMarkup(provider, `
-      <div class="grid">
-        <label>${htmlMessage("displayName")} <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label>
-        <label>API Key <input data-field="apiKey" type="password" value="${escapeAttr(provider.apiKey)}" autocomplete="off" /></label>
-        <label>${htmlMessage("deepLEndpointLabel")} <input data-field="endpoint" type="url" value="${escapeAttr(provider.endpoint)}" placeholder="${htmlMessage("deepLAutoEndpoint")}" /></label>
-      </div>
-      <p class="hint">${htmlMessage("deepLSetupHint")}</p>
-      <p class="hint"><a href="https://www.deepl.com/your-account/keys" target="_blank" rel="noreferrer">${htmlMessage("deepLManageKeys")}</a></p>
-    `);
-    return;
-  }
-
-  if (provider.type === "microsoft-translator") {
-    setProviderFormMarkup(provider, `
-      <div class="grid">
-        <label>${htmlMessage("displayName")} <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label>
-        <label>Endpoint <input data-field="endpoint" type="url" value="${escapeAttr(provider.endpoint)}" /></label>
-        <label>API key <input data-field="apiKey" type="password" value="${escapeAttr(provider.apiKey)}" /></label>
-        <label>${htmlMessage("region")} <input data-field="region" type="text" value="${escapeAttr(provider.region)}" placeholder="${htmlMessage("globalOrAnAzureRegion")}" /></label>
-      </div>
-    `);
-    return;
-  }
-
-  if (provider.type === "google-cloud-translation") {
-    setProviderFormMarkup(provider, `
-      <div class="grid">
-        <label>${htmlMessage("displayName")} <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label>
-        <label>API key <input data-field="apiKey" type="password" value="${escapeAttr(provider.apiKey)}" /></label>
-      </div>
-    `);
-    return;
-  }
-
-  if (provider.type === "openai-compatible" || provider.type === "anthropic-compatible" || provider.type === "index-translate") {
-    const isAnthropic = provider.type === "anthropic-compatible";
-    setProviderFormMarkup(provider, `
-      <div class="grid">
-        <label>${htmlMessage("displayName")} <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label>
-        <label>Base URL <input data-field="baseURL" type="url" value="${escapeAttr(provider.baseURL)}" /></label>
-        <label>${htmlMessage("apiKeyOptional")} <input data-field="apiKey" type="password" value="${escapeAttr(provider.apiKey)}" /></label>
-        ${renderModelControl(provider)}
-      </div>
-      <label>${htmlMessage("systemPrompt")} <textarea data-field="systemPrompt">${escapeHtml(provider.systemPrompt)}</textarea></label>
-      ${provider.type !== "openai-compatible" ? "" : `
-        <label>${htmlMessage("ollamaCompatibility")}
-          <select data-field="ollamaCompatibility">
-            <option value="enabled" ${provider.type === "openai-compatible" && provider.ollamaCompatibility !== false ? "selected" : ""}>${htmlMessage("enabledDefault")}</option>
-            <option value="disabled" ${provider.type === "openai-compatible" && provider.ollamaCompatibility === false ? "selected" : ""}>${htmlMessage("disabledOption")}</option>
-          </select>
-        </label>
-        <p class="hint">${htmlMessage("enabledByDefaultSupportsIpv4Ipv6CustomPorts")}</p>
-      `}
-      <p class="hint">${htmlMessage("apiFormat", isAnthropic ? "Anthropic Messages" : "OpenAI Chat Completions")}</p>
-      ${provider.type === "index-translate" ? `<p class="hint">${htmlMessage("indexTranslateSetupHint")}</p>
-        <p class="hint"><a href="https://github.com/bilibili/Index-Translate#inference" target="_blank" rel="noreferrer">${htmlMessage("indexTranslateSetupGuide")}</a></p>` : ""}
-    `);
-    return;
-  }
-
-  if (provider.type === "deepseek") {
-    setProviderFormMarkup(provider, `
-      <div class="grid">
-        <label>${htmlMessage("displayName")} <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label>
-        <label>Base URL <input data-field="baseURL" type="url" value="${escapeAttr(provider.baseURL)}" /></label>
-        <label>API key <input data-field="apiKey" type="password" value="${escapeAttr(provider.apiKey)}" /></label>
-        ${renderModelControl(provider)}
-      </div>
-      <label>${htmlMessage("systemPrompt")} <textarea data-field="systemPrompt">${escapeHtml(provider.systemPrompt)}</textarea></label>
-      <p class="hint">${htmlMessage("usesDeepseekChatCompletionsWithThinkingDisabledBy")}</p>
-    `);
-    return;
-  }
-
-  if (provider.type === "zhipu-glm") {
-    setProviderFormMarkup(provider, `
-      <div class="grid">
-        <label>${htmlMessage("displayName")} <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label>
-        <label>Base URL <input data-field="baseURL" type="url" value="${escapeAttr(provider.baseURL)}" /></label>
-        <label>API key <input data-field="apiKey" type="password" value="${escapeAttr(provider.apiKey)}" /></label>
-        ${renderModelControl(provider)}
-      </div>
-      <label>${htmlMessage("systemPrompt")} <textarea data-field="systemPrompt">${escapeHtml(provider.systemPrompt)}</textarea></label>
-      <p class="hint">${htmlMessage("usesZhipuGlmChatCompletionsDefaultApiAddress")}</p>
-    `);
-    return;
-  }
-
-  setProviderFormMarkup(provider, `
-    <div class="grid">
-      <label>${htmlMessage("displayName")} <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label>
-      <label>${htmlMessage("requestMethod")}
-        <select data-field="method">
-          <option value="POST" ${provider.method === "POST" ? "selected" : ""}>POST</option>
-          <option value="GET" ${provider.method === "GET" ? "selected" : ""}>GET</option>
-        </select>
-      </label>
-      <label>URL <input data-field="url" type="url" value="${escapeAttr(provider.url)}" /></label>
-      <label>${htmlMessage("responsePath")} <input data-field="responsePath" type="text" value="${escapeAttr(provider.responsePath)}" /></label>
-    </div>
-    <label>${htmlMessage("requestHeadersJson")} <textarea data-field="headers">${escapeHtml(JSON.stringify(provider.headers, null, 2))}</textarea></label>
-    <label>${htmlMessage("requestBodyTemplate")} <textarea data-field="bodyTemplate">${escapeHtml(provider.bodyTemplate)}</textarea></label>
-  `);
-}
-
-function renderDoubaoStatus(): void {
-  if (optionsClosed || getEditingProvider().type !== "doubao-web") return;
-  const statusElement = providerForm.querySelector<HTMLElement>("[data-role='doubao-status']");
-  const checkButton = providerForm.querySelector<HTMLButtonElement>("[data-action='check-doubao']");
-  const retryIn = Math.max(0, (doubaoStatus.retryAt ?? 0) - Date.now());
-  if (statusElement) {
-    statusElement.textContent = formatDoubaoStatus(doubaoStatus);
-    statusElement.dataset.state = doubaoStatus.state;
-  }
-  const disabled = Boolean(doubaoCheck) || doubaoStatus.state === "checking" || !isDoubaoBrowserSupported() || retryIn > 0;
-  if (checkButton) checkButton.disabled = disabled;
-  clearTimeout(doubaoRetryTimer);
-  if (retryIn > 0) doubaoRetryTimer = setTimeout(renderDoubaoStatus, Math.min(retryIn + 10, 1000));
-  else if (doubaoStatus.state === "checking" && !doubaoCheck) {
-    const version = providerFormVersion;
-    const revision = doubaoStatusRevision;
-    doubaoRetryTimer = setTimeout(() => {
-      void sendRuntimeMessage<DoubaoStatus>({ type: "GET_DOUBAO_STATUS" }).then((result) => {
-        if (version !== providerFormVersion || revision !== doubaoStatusRevision || !result) return;
-        doubaoStatus = result;
-        renderDoubaoStatus();
-      }).catch(() => {
-        if (version !== providerFormVersion || revision !== doubaoStatusRevision) return;
-        doubaoStatus = { state: "network-error" };
-        renderDoubaoStatus();
-      });
-    }, 1000);
-  }
-}
-
-function checkDoubao(): Promise<void> {
-  if (doubaoCheck) return doubaoCheck;
-  if (!isDoubaoBrowserSupported()) {
-    doubaoStatus = { state: "unsupported-browser" };
-    renderDoubaoStatus();
-    return Promise.resolve();
-  }
-  if ((doubaoStatus.retryAt ?? 0) > Date.now()) return Promise.resolve();
-  doubaoStatusRevision += 1;
-  doubaoStatus = { state: "checking" };
-  doubaoCheck = sendRuntimeMessage<DoubaoStatus>({ type: "CHECK_DOUBAO" })
-    .then((result) => { doubaoStatus = result; })
-    .catch(() => { doubaoStatus = { state: "network-error", checkedAt: Date.now() }; })
-    .finally(() => {
-      doubaoCheck = undefined;
-      renderDoubaoStatus();
-    });
-  renderDoubaoStatus();
-  return doubaoCheck;
+  setProviderFormMarkup(provider, `<div class="grid"><label>${htmlMessage("displayName")}
+    <input data-field="label" type="text" value="${escapeAttr(provider.label)}" readonly /></label></div>
+    <div data-local-model-control></div>`);
+  updateLocalControl();
 }
 
 function updateLocalControl(): void {
@@ -662,18 +396,6 @@ function modelPresets(provider: ModelProvider): string[] {
 
 function renderTestButton(): string {
   return `<button id="test" type="button" class="secondary">${htmlMessage("testService")}</button>`;
-}
-
-function renderModelControl(provider: ModelProvider): string {
-  const models = [...new Set([...modelPresets(provider), ...(provider.customModels ?? [])])];
-  return `<div class="model-field">
-    <label for="providerModel">${htmlMessage("model")}</label>
-    <div class="model-toolbar">
-      <select id="providerModel" data-field="model">${renderOptions(models, provider.model)}</select>
-      <button type="button" class="icon-button add-model" data-action="manage-model" title="${htmlMessage("addOrEditModel")}" aria-label="${htmlMessage("addOrEditModel")}">${uiIconMarkup("plus")}</button>
-      ${renderTestButton()}
-    </div>
-  </div>`;
 }
 
 async function saveModel(): Promise<void> {
@@ -759,7 +481,7 @@ async function handleProviderAction(action: string, providerId: string): Promise
 
 async function selectProvider(providerId: string): Promise<void> {
   const provider = settings.providers.find((entry) => entry.id === providerId);
-  if (!provider || isDoubaoProviderUnavailable(provider)) return;
+  if (!provider || provider.type !== "firefox-local") return;
   invalidateProviderTest();
   settings = readSettingsFromForm();
   if (provider.enabled !== false) settings.activeProviderId = providerId;
@@ -813,90 +535,9 @@ async function deleteProvider(providerId: string): Promise<void> {
   setStatus(t("customServiceDeleted"));
 }
 
-function openProviderDialog(): void {
-  setProviderMenuOpen(false);
-  customProviderName.value = "";
-  customProviderKind.value = "http";
-  customLlmFormat.value = "openai";
-  updateCustomProviderFields();
-  providerDialog.showModal();
-  window.setTimeout(() => customProviderName.focus(), 0);
-}
-
-function updateCustomProviderFields(): void {
-  customLlmFormatField.hidden = customProviderKind.value !== "llm";
-}
-
-async function addCustomProvider(): Promise<void> {
-  try {
-    settings = readSettingsFromForm();
-    const provider = createCustomProvider(
-      customProviderName.value.trim(),
-      customProviderKind.value,
-      customLlmFormat.value
-    );
-    settings.providers = [...settings.providers, provider];
-    settings.activeProviderId = provider.id;
-    await persistSettings(false);
-    editingProviderId = provider.id;
-    providerDialog.close();
-    render();
-    setStatus(t("customServiceAddedCompleteItsConfigurationAndSave"));
-  } catch (error) {
-    setStatus(error instanceof Error ? error.message : String(error));
-  }
-}
-
-function createCustomProvider(name: string, kind: string, llmFormat: string): ProviderConfig {
-  const id = createCustomProviderId(kind === "llm" ? llmFormat : kind);
-  if (kind === "http") {
-    return {
-      type: "http-template",
-      id,
-      label: name || t("customHttp"),
-      enabled: true,
-      performanceMode: "inherit",
-      method: "POST",
-      url: "",
-      headers: { "Content-Type": "application/json" },
-      bodyTemplate: "{\"q\":{{json texts}},\"source\":\"{{sourceLang}}\",\"target\":\"{{targetLang}}\"}",
-      responsePath: "translations"
-    };
-  }
-  if (llmFormat === "anthropic") {
-    return {
-      type: "anthropic-compatible",
-      id,
-      label: name || t("customAnthropicLlm"),
-      enabled: true,
-      performanceMode: "custom",
-      chunkSize: 3200,
-      concurrency: settings.concurrency,
-      baseURL: "https://api.anthropic.com/v1",
-      apiKey: "",
-      model: "claude-3-5-haiku-latest",
-      systemPrompt: DEFAULT_LLM_PROMPT
-    };
-  }
-  return {
-    type: "openai-compatible",
-    id,
-    label: name || t("customOpenaiLlm"),
-    enabled: true,
-    performanceMode: "custom",
-    chunkSize: 3200,
-    concurrency: settings.concurrency,
-    baseURL: "https://api.openai.com/v1",
-    ollamaCompatibility: true,
-    apiKey: "",
-    model: "gpt-4o-mini",
-    systemPrompt: DEFAULT_LLM_PROMPT
-  };
-}
-
-function createCustomProviderId(kind: string): string {
-  return `custom-${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
+function openProviderDialog(): void { /* No custom/online services supported. */ }
+function updateCustomProviderFields(): void { /* No custom/online services supported. */ }
+async function addCustomProvider(): Promise<void> { throw new Error("Online/API providers are removed."); }
 
 async function save(): Promise<void> {
   setStatus("");
@@ -955,10 +596,6 @@ function invalidateProviderTest(): void {
 }
 
 async function testProvider(): Promise<void> {
-  if (getEditingProvider().type === "doubao-web") {
-    await checkDoubao();
-    return;
-  }
   invalidateProviderTest();
   const inlineStatus = providerForm.querySelector<HTMLElement>("[data-role='provider-test-status']");
   if (!inlineStatus) return;
@@ -1294,14 +931,7 @@ function escapeAttr(value: string): string {
   return escapeHtml(value);
 }
 
-function renderOptions(values: string[], selected: string): string {
-  const options = values.includes(selected) ? values : [selected, ...values];
-  return options
-    .map((value) =>
-      `<option value="${escapeAttr(value)}" ${value === selected ? "selected" : ""}>${escapeHtml(value)}</option>`
-    )
-    .join("");
-}
+
 
 function cloneSettings(value: ExtensionSettings): ExtensionSettings {
   return JSON.parse(JSON.stringify(value)) as ExtensionSettings;

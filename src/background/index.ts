@@ -10,23 +10,18 @@ import { loadImageData, translateImageWithSettings } from "./image-translation";
 import { getTranslationDebugSnapshot, translateWithSettings } from "./translation";
 import { clearTranslationCache, currentCacheGeneration, initTranslationCache } from "./translation-cache";
 import { getOcrStatus, requestOcr } from "./ocr";
-import { cancelOcrTest, initOcrService, ocrRevision, testOcrService } from "./ocr-service";
-import { normalizeOcrSettings, ocrSettingsIdentity, validateOcrService } from "../shared/ocr-service";
+import { initOcrService, ocrRevision } from "./ocr-service";
+import { normalizeOcrSettings, ocrSettingsIdentity } from "../shared/ocr-service";
 import { initImageContextMenu, refreshImageContextMenu } from "./image-context-menu";
 import { initPageContextMenu, refreshPageContextMenu } from "./page-context-menu";
-import { initializeOllamaCompatibility } from "./ollama-compatibility";
 import { requestLocal } from "./local";
-import { lookupDictionary, playDictionaryAudio, stopDictionaryAudio } from "./dictionary";
-import { normalizeSelectionTranslation } from "../shared/dictionary";
-import { cancelVideo, clearVideoTab, initVideoSettings, openVideoInTab, registerVideoFrame, translateVideo } from "./video";
-import { checkDoubao, getDoubaoStatus } from "./doubao";
-import { initializeDoubaoCompatibility } from "./doubao-compatibility";
+
 import { runtimeErrorResponse } from "../shared/errors";
 import { frameSessions } from "./frame-sessions";
 import type { FrameSessionRequest } from "../shared/frame-session";
 import { readParagraphMode } from "../shared/paragraph-mode";
 import { saveParagraphMode } from "./paragraph-mode";
-import { captureVideoFrame } from "./video-frame";
+
 import { installPdfTranslation } from "./pdf-translation";
 import { installPdfNavigation } from "./pdf-navigation";
 
@@ -52,8 +47,8 @@ catch (error) { console.warn("WuPage frame integration:", error); }
 initStatistics();
 initTranslationCache();
 initOcrService();
-try { initVideoSettings(); chrome.tabs?.onRemoved?.addListener(clearVideoTab); }
-catch (error) { console.warn("WuPage video integration:", error); }
+// Permanently strip credentials and previously configured network translators from existing settings.
+void saveSettings(latest => latest).catch(error => console.warn("Offline settings migration:", error));
 
 // Auxiliary browser integrations must not prevent settings and translation
 // messages from being handled when a Chromium fork lacks one of these APIs.
@@ -62,8 +57,6 @@ try {
 } catch (error: unknown) {
   console.warn("WuPage image menu:", error);
 }
-void initializeOllamaCompatibility().catch((error: unknown) => console.warn("WuPage Ollama compatibility:", error));
-void initializeDoubaoCompatibility().catch((error: unknown) => console.warn("WuPage Doubao compatibility:", error));
 try {
   initPageContextMenu();
 } catch (error: unknown) {
@@ -87,33 +80,17 @@ async function handleMessage(request: RuntimeRequest, sender: chrome.runtime.Mes
       await refreshPageContextMenu(sender);
       return null;
     case "VIDEO_FRAME_STATUS":
-      registerVideoFrame(request, sender); return null;
     case "CAPTURE_VIDEO_FRAME":
-      return captureVideoFrame(request, sender);
     case "TRANSLATE_VIDEO_SUBTITLES":
-      return translateVideo(request, sender);
     case "CANCEL_VIDEO_SUBTITLES":
-      cancelVideo(request, sender); return null;
     case "OPEN_VIDEO_SUBTITLES":
-      return openVideoInTab(request.tabId ?? sender.tab?.id);
+      throw new Error("Online subtitle sources were removed from this edition.");
     case "LOOKUP_DICTIONARY":
-    case "PLAY_DICTIONARY_AUDIO": {
-      const settings = normalizeSelectionTranslation((await getSettings()).selectionTranslation);
-      if (!settings.enabled) throw new Error(t("enableSelectionTranslationInSettingsFirst"));
-      if (request.type === "LOOKUP_DICTIONARY") return lookupDictionary(request.provider, request.query);
-      return playDictionaryAudio(request.provider, request.url, `${sender.tab?.id ?? "extension"}:${sender.frameId ?? 0}`);
-    }
+    case "PLAY_DICTIONARY_AUDIO":
     case "STOP_DICTIONARY_AUDIO":
-      return stopDictionaryAudio(`${sender.tab?.id ?? "extension"}:${sender.frameId ?? 0}`);
     case "GET_DOUBAO_STATUS":
-      return getDoubaoStatus();
-    case "CHECK_DOUBAO": {
-      const settings = await getSettings();
-      if (!settings.providers.some((entry) => entry.type === "doubao-web" && entry.enabled !== false)) {
-        throw new Error(t("enableTheDoubaoTranslationServiceFirst"));
-      }
-      return checkDoubao();
-    }
+    case "CHECK_DOUBAO":
+      throw new Error("Online dictionaries and translation providers are removed from this edition.");
     case "GET_LOCAL_MODEL_STATUS":
       return requestLocal("status");
     case "INSTALL_LOCAL_MODEL":
@@ -162,8 +139,6 @@ async function handleMessage(request: RuntimeRequest, sender: chrome.runtime.Mes
       await saveSettings(async latest => {
         const next = request.previousSettings
           ? mergeSettingsChanges(latest, request.settings, request.previousSettings) : request.settings;
-        const config = normalizeOcrSettings(next.ocr);
-        if (config.mode === "http") validateOcrService(config);
         if (next.imageTranslationEnabled && (!latest.imageTranslationEnabled || ocrSettingsIdentity(next.ocr) !== ocrSettingsIdentity(latest.ocr))
           && !await ocrRevision(next)) throw new Error(t("useTheWrenchBesideImageTranslationToInstall"));
         return next;
@@ -172,15 +147,8 @@ async function handleMessage(request: RuntimeRequest, sender: chrome.runtime.Mes
     case "GET_OCR_STATUS":
       return request.builtin ? requestOcr("status") : getOcrStatus(await getSettings());
     case "TEST_OCR_SERVICE":
-    case "CANCEL_OCR_TEST": {
-      if (sender.id !== chrome.runtime.id || sender.url?.split(/[?#]/u)[0] !== chrome.runtime.getURL("options.html")) {
-        throw new Error(t("ocrServiceOptionsOnly"));
-      }
-      if (request.type === "CANCEL_OCR_TEST") { cancelOcrTest(request.requestId); return null; }
-      const config = normalizeOcrSettings(request.config);
-      if (config.mode !== "http") throw new Error(t("ocrServiceInvalidConfig"));
-      return testOcrService(request.requestId, config, request.image);
-    }
+    case "CANCEL_OCR_TEST":
+      throw new Error("Remote OCR services are removed from this edition.");
     case "INSTALL_OCR":
       return requestOcr("install");
     case "REMOVE_OCR": {

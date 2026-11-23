@@ -19,7 +19,7 @@ const OWNED = '.wupage-translation,.wupage-translation-pending,#wupage-floating-
 
 export function initAutoTranslation(overrides: Partial<AutoTranslationDependencies> = {}): () => void {
   if (typeof document === "undefined" || typeof window === "undefined" || window.top !== window
-    || !/^https?:$/u.test(location.protocol) || !["text/html", "application/xhtml+xml"].includes(document.contentType)) return () => {};
+    || !/^https?:$|^file:$/u.test(location.protocol) || !["text/html", "application/xhtml+xml"].includes(document.contentType)) return () => {};
   const deps: AutoTranslationDependencies = {
     loadSettings: loadPageTranslationSettings,
     start: startPageTranslation,

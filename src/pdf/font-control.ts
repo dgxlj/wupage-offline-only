@@ -20,7 +20,8 @@ export function setupPdfFontControl(): {
   const importButton = document.querySelector<HTMLButtonElement>("#pdfFontImport")!;
   const fileInput = document.querySelector<HTMLInputElement>("#pdfFontFile")!;
   const download = document.querySelector<HTMLAnchorElement>("#pdfFontDownload")!;
-  download.href = PDF_FONT.source;
+  download.removeAttribute("href");
+  download.hidden = true;
   download.title = PDF_FONT.file;
   document.querySelector<HTMLElement>("#pdfFontSize")!.textContent = t("fullFontPackMbOneTimeDownload", (PDF_FONT.bytes / 1_000_000).toFixed(1));
   let installed = false, exporting = false, skipPrompt = false, disposed = false;

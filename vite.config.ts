@@ -35,10 +35,6 @@ export default defineConfig(({ mode }) => {
           bundle: true, minify: true, sourcemap, format: "iife", platform: "browser", target });
         await bundle({ entryPoints: ["src/content/frame-content.ts"], outfile: resolve(__dirname, outDir, "frame-content.js"),
           bundle: true, minify: true, sourcemap, format: "esm", platform: "browser", target });
-        await bundle({ entryPoints: ["src/video/page-bridge.ts"], outfile: resolve(__dirname, outDir, "video-page-bridge.js"),
-          bundle: true, minify: true, sourcemap, format: "iife", platform: "browser", target });
-        await bundle({ entryPoints: ["src/content/video-subtitles.ts"], outfile: resolve(__dirname, outDir, "video-content.js"),
-          bundle: true, minify: true, sourcemap, format: "esm", platform: "browser", target });
         const output = resolve(__dirname, outDir, "ocr-runtime");
         await mkdir(output, { recursive: true });
         await bundle({ entryPoints: ["src/ocr/sandbox.ts"], outfile: resolve(output, "engine.js"), bundle: true, minify: true, format: "iife", platform: "browser", target, external: ["fs", "path"],

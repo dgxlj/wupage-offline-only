@@ -1,5 +1,4 @@
 import { t } from "../shared/i18n";
-import { anySignal } from "../shared/abort";
 import { CACHE_PREFIX } from "../shared/defaults";
 import { sha256 } from "../shared/hash";
 import { getEffectiveProviderPerformance, isLlmProvider } from "../shared/performance";
@@ -17,8 +16,6 @@ import { translateTextWithRecovery } from "./protected-translation";
 import { ProviderError } from "../shared/errors";
 import { assertTranslationResponse, TranslationResponseError } from "./translation-response";
 import { LOCAL_MODELS } from "../local/models";
-import { DOUBAO_PROTOCOL_VERSION } from "../shared/doubao";
-import { withDoubaoDeadline } from "./doubao";
 import { createStatisticsRecorder, type StatisticsRecorder } from "./statistics";
 import { currentCacheGeneration, writeTranslationCache } from "./translation-cache";
 
@@ -27,7 +24,6 @@ const providerLimiters = new Map<string | symbol, ProviderLimiter>();
 const debugTasks: TranslationDebugTask[] = [];
 let nextDebugTaskId = 1;
 const MAX_DEBUG_TASKS = 100;
-const MAX_LLM_BATCH_ITEMS = 16;
 /** Bumping this invalidates every persisted translation. */
 const CACHE_KEY_VERSION = 5;
 /** Proxy fields that only affect scheduling or presentation, never the text. */
@@ -51,18 +47,9 @@ export async function translateWithSettings(
   signal?.throwIfAborted();
   const providerId = request.providerId ?? settings.activeProviderId;
   const providerConfig = settings.providers.find((provider) => provider.id === providerId);
-  if (!providerConfig) throw new Error(t("unknownProvider", providerId));
+  if (!providerConfig || providerConfig.type !== "firefox-local") throw new Error("Only the local Bergamot translator is available.");
   if (providerConfig.enabled === false) throw new Error(t("providerDisabled", providerId));
 
-  if (providerConfig.type === "doubao-web") {
-    return withDoubaoDeadline(async (deadlineSignal) => {
-      const requestSignal = signal ? anySignal([signal, deadlineSignal]) : deadlineSignal;
-      // The article endpoint detects its own source language. Browser detection
-      // must not gate short paragraphs, titles, or mixed-language batches.
-      const sourceLang = request.sourceLang ?? "auto";
-      return translateConfigured(settings, { ...request, sourceLang, context: undefined }, providerConfig, { ...options, cacheGeneration, signal: requestSignal });
-    }, signal);
-  }
   return translateConfigured(settings, request, providerConfig, { ...options, cacheGeneration });
 }
 
@@ -84,9 +71,7 @@ async function translateConfigured(
   // provider or tuning its concurrency must not discard the whole cache.
   const cacheProviderId = useCache
     ? `${providerId}.${await sha256(JSON.stringify({ version: CACHE_KEY_VERSION, provider: cacheStableProviderConfig(providerConfig), sourceLang: request.sourceLang ?? "auto",
-      ...(providerConfig.type === "google-web-translate" && providerConfig.serviceMode !== "api" ? { googleContextVersion: 2 } : {}),
       ...(providerConfig.type === "firefox-local" ? { models: LOCAL_MODELS.map(({ id, version }) => [id, version]) } : {}),
-      ...(providerConfig.type === "doubao-web" ? { doubaoProtocolVersion: DOUBAO_PROTOCOL_VERSION, translateService: "1" } : {}),
       // Bump the style version when its built-in translation instructions change.
       ...(request.translationStyle ? { translationStyle: request.translationStyle, translationStyleVersion: 1 } : {}),
       ...(request.preservePlaceholders ? { protectedTextVersion: 1 } : {}) }))}`
@@ -125,7 +110,7 @@ async function translateConfigured(
   const translated = await runBatches(
     uncachedTexts,
     performance.chunkSize,
-    providerConfig.type === "doubao-web" ? 10 : isLlmProvider(providerConfig) ? MAX_LLM_BATCH_ITEMS : Number.POSITIVE_INFINITY,
+    Number.POSITIVE_INFINITY,
     performance.concurrency,
     (texts) => translateProviderBatchWithRecovery(providerConfig, texts, runProviderTexts)
   );

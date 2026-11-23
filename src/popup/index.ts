@@ -117,6 +117,7 @@ async function init(): Promise<void> {
     .map((entry) => `<option value="${escapeHtml(entry.id)}" ${isDoubaoProviderUnavailable(entry) ? `disabled title="${htmlMessage("doubaoTranslationIsUnavailableInThisBrowser")}"` : ""}>${escapeHtml(entry.label)}</option>`)
     .join("");
   provider.value = settings.activeProviderId;
+  provider.disabled = true; // Offline-only provider.
   enhanceProviderSelect(provider, settings.providers);
   syncDoubaoTargetControls(settings, targetLang);
   updateLocalNotice();
@@ -192,8 +193,9 @@ async function init(): Promise<void> {
   sourceLang.addEventListener("change", saveSelection);
   provider.addEventListener("change", saveSelection);
   pageToggleButton.addEventListener("click", togglePageTranslation);
-  videoTranslationButton.addEventListener("click", toggleVideoTranslation);
-  videoTranslationButton.disabled = false;
+
+  videoTranslationButton.hidden = true;
+  videoTranslationButton.disabled = true;
   translationDisplayMode.addEventListener("change", saveSelection);
   paragraphModeButton.addEventListener("click", toggleParagraphMode);
   contextMenuTranslationButton.addEventListener("click", toggleContextMenuTranslation);
@@ -289,6 +291,7 @@ function applyPopupSettings(incoming: ExtensionSettings): void {
     }
     provider.dataset.options = signature;
     provider.value = settings.activeProviderId;
+  provider.disabled = true; // Offline-only provider.
     enhanceProviderSelect(provider, settings.providers);
   }
   if (translationDisplayMode.value !== settings.translationDisplayMode) translationDisplayMode.value = settings.translationDisplayMode;
@@ -433,7 +436,7 @@ function isSupportedPageUrl(value: string | undefined): boolean {
   if (!value) return false;
   try {
     const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:";
+    return url.protocol === "http:" || url.protocol === "https:" || url.protocol === "file:";
   } catch {
     return false;
   }
@@ -750,19 +753,6 @@ function updateVideoTranslationButton(): void {
   const value = String(normalizeVideoTranslation(settings.videoTranslation).enabled);
   if (videoTranslationButton.getAttribute("aria-pressed") !== value) videoTranslationButton.setAttribute("aria-pressed", value);
   videoTranslationButton.removeAttribute("data-loading");
-}
-
-async function toggleVideoTranslation(): Promise<void> {
-  const enabled = !normalizeVideoTranslation(settings.videoTranslation).enabled;
-  setButtonBusy(videoTranslationButton, true);
-  try {
-    await updatePopupSettings(latest => ({ videoTranslation: { ...normalizeVideoTranslation(latest.videoTranslation), enabled } }));
-  } catch (error) {
-    setStatus(error instanceof Error ? error.message : String(error));
-  } finally {
-    updateVideoTranslationButton();
-    setButtonBusy(videoTranslationButton, false);
-  }
 }
 
 function updateParagraphModeButton(): void {

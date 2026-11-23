@@ -177,7 +177,7 @@
             <fieldset id="selectionTranslationFields" class="selection-translation-fields">
               <div class="grid">
                 <label data-i18n="defaultDictionary">默认词典
-                  <select id="selectionDictionary"><option value="youdao" data-i18n="youdaoDictionary">有道词典</option><option value="bing" data-i18n="bingDictionary">Bing 词典</option></select>
+                  <select id="selectionDictionary" hidden disabled><option value="youdao">本地翻译</option><option value="bing">本地翻译</option></select>
                 </label>
                 <label data-i18n="selectionShortcutStyle">划词入口样式
                   <select id="selectionTriggerStyle"><option value="dot" data-i18n="dot">小圆点</option><option value="underline" data-i18n="underline">下划线</option></select>
@@ -370,7 +370,7 @@
                     </button>
                     <div id="providerMenu" class="provider-menu" role="listbox" hidden></div>
                   </div>
-                  <button id="addProvider" class="icon-button add-provider" type="button" title="添加自定义供应商" aria-label="添加自定义供应商" data-i18n-title="addCustomProvider" data-i18n-aria-label="addCustomProvider"><span data-wupage-icon="plus" aria-hidden="true"></span></button>
+                  <button id="addProvider" hidden disabled class="icon-button add-provider" type="button" title="添加自定义供应商" aria-label="添加自定义供应商" data-i18n-title="addCustomProvider" data-i18n-aria-label="addCustomProvider"><span data-wupage-icon="plus" aria-hidden="true"></span></button>
                 </div>
               </div>
               <p id="disabledProviderHint" class="hint" role="status" hidden data-i18n="thisServiceIsDisabledYouCanStillEdit">此服务已停用，仍可编辑、保存和测试配置。启用后才会出现在翻译服务列表中。</p>
@@ -382,31 +382,7 @@
                 <p data-i18n="ocrTranslationServiceDescription">配置图片和暂停画面的文字识别；识别结果由文本翻译服务翻译。</p>
               </div>
               <div id="ocrServiceSettings" class="ocr-service-settings">
-                <label class="ocr-backend-row" for="ocrBackend"><span data-i18n="ocrBackendLabel">文字识别</span>
-                  <select id="ocrBackend">
-                    <option value="builtin" data-i18n="builtinOcr">内置 OCR（本机识别）</option>
-                    <option value="http" data-i18n="customOcrService">自定义 OCR 服务</option>
-                  </select>
-                </label>
-                <div id="ocrServiceFields" hidden>
-                  <p class="field-description" data-i18n="ocrServicePrivacy">图片及暂停的视频画面将发送到指定 OCR 服务；翻译服务只接收识别出的文字。</p>
-                  <label><span data-i18n="ocrServiceEndpoint">识别接口地址</span>
-                    <input id="ocrServiceEndpoint" type="url" placeholder="http://127.0.0.1:8000/v1/ocr" autocomplete="off" spellcheck="false" maxlength="2048" />
-                  </label>
-                  <div class="grid">
-                    <label><span data-i18n="ocrServiceModel">模型名称</span><input id="ocrServiceModel" type="text" maxlength="200" autocomplete="off" spellcheck="false" /></label>
-                    <label><span data-i18n="ocrServiceKey">API 密钥（可选）</span><input id="ocrServiceKey" type="password" maxlength="8192" autocomplete="new-password" /></label>
-                  </div>
-                  <label><span data-i18n="ocrServiceRevision">模型缓存版本</span><input id="ocrServiceRevision" type="text" value="1" maxlength="200" autocomplete="off" spellcheck="false" /></label>
-                  <p class="field-description" data-i18n="ocrServiceProtocolHelp">需使用 WuPage OCR 协议并返回文字坐标。服务器更换模型权重后，请修改缓存版本。地址按原样使用。</p>
-                  <div class="ocr-service-test-actions">
-                    <button id="testOcrService" type="button" class="secondary" data-i18n="testOcrService">测试识别</button>
-                    <button id="cancelOcrTest" type="button" class="secondary" hidden data-i18n="cancel">取消</button>
-                  </div>
-                  <p id="ocrServiceTestStatus" role="status" class="field-description"></p>
-                  <canvas id="ocrServicePreview" width="640" height="160" hidden data-i18n-aria-label="ocrServicePreviewLabel" aria-label="OCR 测试图片与文字框"></canvas>
-                  <pre id="ocrServiceTestText" hidden></pre>
-                </div>
+                仅内置 PaddleOCR，本地识别；首次使用需要下载 OCR 模型。
               </div>
             </section>
           </section>
@@ -526,29 +502,11 @@
         <button id="confirmSettingsBackup" type="button" data-i18n="confirm">确认</button>
       </div>
     </dialog>
-    <dialog id="providerDialog" class="provider-dialog">
-      <form id="providerDialogForm">
-        <header class="dialog-header">
-          <h2 data-i18n="addCustomProvider">添加自定义供应商</h2>
-          <button id="cancelProvider" class="dialog-close" type="button" title="关闭" aria-label="关闭" data-i18n-title="close" data-i18n-aria-label="close"><span data-wupage-icon="cross" aria-hidden="true"></span></button>
-        </header>
-        <label data-i18n="displayName">显示名称 <input id="customProviderName" type="text" placeholder="例如：公司翻译服务"  data-i18n-placeholder="forExampleCompanyTranslation"/></label>
-        <label data-i18n="providerType">供应商类型
-          <select id="customProviderKind">
-            <option value="http">HTTP</option>
-            <option value="llm">LLM</option>
-          </select>
-        </label>
-        <label id="customLlmFormatField" hidden data-i18n="llmApiFormat">LLM 接口格式
-          <select id="customLlmFormat">
-            <option value="openai" data-i18n="openaiCompatible">OpenAI 兼容</option>
-            <option value="anthropic" data-i18n="anthropicCompatible">Anthropic 兼容</option>
-          </select>
-        </label>
-        <div class="dialog-actions">
-          <button type="submit" data-i18n="add">添加</button>
-        </div>
-      </form>
+    <dialog id="providerDialog" hidden>
+      <form id="providerDialogForm"><input id="customProviderName" value="" />
+      <select id="customProviderKind"><option value="http"></option></select>
+      <label id="customLlmFormatField" hidden><select id="customLlmFormat"><option value="offline"></option></select></label>
+      <button id="cancelProvider" type="button">取消</button></form>
     </dialog>
     <dialog id="modelDialog" class="provider-dialog">
       <form id="modelDialogForm">

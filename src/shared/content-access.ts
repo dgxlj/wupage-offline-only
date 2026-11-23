@@ -12,6 +12,7 @@ export function isRestrictedContentUrl(address?: string, frame = false): boolean
     // The frame bootstrap supports inherited origins on these document types.
     if (frame && (url.protocol === "blob:" || url.protocol === "data:"
       || address === "about:blank" || address === "about:srcdoc")) return false;
+    if (url.protocol === "file:") return false; // Chrome/Edge additionally requires explicit file-URL access.
     if (url.protocol !== "http:" && url.protocol !== "https:") return true;
     const agent = typeof navigator === "undefined" ? "" : navigator.userAgent;
     const firefox = /\bFirefox\//u.test(agent);

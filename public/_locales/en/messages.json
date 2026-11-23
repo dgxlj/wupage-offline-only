@@ -7,7 +7,11 @@
   },
   "alwaysHideFloatingBallOn": {
     "message": "Always hide on $SITE$",
-    "placeholders": { "site": { "content": "$1" } }
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
   },
   "floatingBallExcludedSites": {
     "message": "Sites with the floating button hidden"
@@ -155,7 +159,7 @@
     "message": "Limits depend on the connected service and device. The official local bridge calls the online API; it is not offline inference. Default concurrency is 1."
   },
   "extensionName": {
-    "message": "WuPage Translator"
+    "message": "WuPage（不可说的秘密版）V1.0"
   },
   "extensionDescription": {
     "message": "Translate pages, PDFs, images and video subtitles with configurable translation services and LLM providers."
@@ -2525,15 +2529,39 @@
   },
   "modelFileDownloadFailed": {
     "message": "Could not download model file $ARG1$ (HTTP $ARG2$).",
-    "placeholders": { "arg1": { "content": "$1" }, "arg2": { "content": "$2" } }
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
   },
   "modelFileDownloadTimedOut": {
     "message": "Download of model file $ARG1$ timed out. Check your connection to $ARG2$, or download the files and import them offline.",
-    "placeholders": { "arg1": { "content": "$1" }, "arg2": { "content": "$2" } }
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
   },
   "modelFileNetworkError": {
     "message": "Could not connect to download model file $ARG1$. Check your network or proxy settings for $ARG2$. Browser error: $ARG3$.",
-    "placeholders": { "arg1": { "content": "$1" }, "arg2": { "content": "$2" }, "arg3": { "content": "$3" } }
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      },
+      "arg3": {
+        "content": "$3"
+      }
+    }
   },
   "theServerResponseDoesNotMatchTheRequested": {
     "message": "The server response does not match the requested resume position."
@@ -2658,14 +2686,22 @@
   },
   "colorOpacity": {
     "message": "$ARG1$ opacity",
-    "placeholders": { "arg1": { "content": "$1" } }
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
   },
   "overallOpacity": {
     "message": "Overall opacity"
   },
   "copyToConfigureColor": {
     "message": "Configure $ARG1$: duplicate this built-in scheme first",
-    "placeholders": { "arg1": { "content": "$1" } }
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
   },
   "copySchemeBeforeEditing": {
     "message": "Built-in schemes cannot be edited directly. Duplicate the scheme first to adjust colors and opacity."
@@ -3608,8 +3644,12 @@
   "translatedPdfReadyWithFontFallback": {
     "message": "Translated PDF ready: $ARG1$. Missing font characters required $ARG2$ pages to be saved as images. Their content is preserved, but search may be incomplete on those pages.",
     "placeholders": {
-      "arg1": { "content": "$1" },
-      "arg2": { "content": "$2" }
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
     }
   },
   "theBrowserCouldNotCreateThePdfExport": {

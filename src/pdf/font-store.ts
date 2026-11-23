@@ -1,5 +1,4 @@
 import { t } from "../shared/i18n";
-import { anySignal } from "../shared/abort";
 import metadata from "../../public/pdf-fonts/font-metadata.json";
 
 export const PDF_FONT = metadata.font;
@@ -59,34 +58,6 @@ export async function installPdfFont(signal: AbortSignal, onProgress: (downloade
   });
 }
 
-async function downloadPdfFont(signal: AbortSignal, onProgress: (downloaded: number) => void): Promise<Uint8Array> {
-  const bytes = new Uint8Array(PDF_FONT.bytes);
-  try {
-    const response = await fetch(PDF_FONT.source, { credentials: "omit", cache: "no-store",
-      signal: anySignal([signal, AbortSignal.timeout(180_000)]) });
-    if (!response.ok || !response.body) throw new Error(t("fontDownloadFailedRetryOrExportAsImages", response.status));
-    const reader = response.body.getReader();
-    let downloaded = 0;
-    try {
-      while (true) {
-        signal.throwIfAborted();
-        const { done, value } = await reader.read();
-        if (done) break;
-        if (downloaded + value.length > bytes.length) throw new Error(t("fontPackSizeMismatchTryAgain"));
-        bytes.set(value, downloaded);
-        downloaded += value.length;
-        onProgress(downloaded);
-      }
-    } finally { await reader.cancel().catch(() => undefined); }
-    signal.throwIfAborted();
-    if (downloaded !== bytes.length) throw new Error(t("fontDownloadIncompleteRetryOrExportAsImages"));
-  } catch (error) {
-    signal.throwIfAborted();
-    if (error instanceof TypeError || (error instanceof Error && error.name === "TimeoutError")) {
-      throw new Error(t("couldNotDownloadFontsFromCheckYourNetwork", new URL(PDF_FONT.source).hostname));
-    }
-    throw error;
-  }
-  // Cache failures must not be presented as network failures.
-  return storePdfFont(bytes, signal);
+async function downloadPdfFont(_signal: AbortSignal, _onProgress: (downloaded: number) => void): Promise<Uint8Array> {
+  throw new Error("This edition does not download the optional PDF export font. Use offline font import instead.");
 }

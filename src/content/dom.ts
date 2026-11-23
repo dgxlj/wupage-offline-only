@@ -2306,6 +2306,13 @@ function isVisuallyHiddenElement(element: Element): boolean {
 
 function isInsideCodeBlock(element: Element | null): boolean {
   if (!element) return false;
+  // Chrome/Edge render text/plain documents (local and remote) inside a
+  // browser-generated <body><pre>...</pre></body>. This is ordinary TXT content,
+  // not a code sample from an HTML page; keep the existing protection for all
+  // other <pre> elements, including code snippets and commands in webpages.
+  if (["file:", "http:", "https:"].includes(location.protocol)
+    && document.contentType === "text/plain"
+    && element.closest("pre")?.parentElement === document.body) return false;
   return Boolean(element.closest(CODE_SELECTOR));
 }
 

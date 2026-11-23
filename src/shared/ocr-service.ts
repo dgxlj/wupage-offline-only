@@ -14,21 +14,11 @@ export const DEFAULT_OCR_SETTINGS: OcrSettings = {
   mode: "builtin", endpoint: "", model: "", apiKey: "", modelRevision: "1"
 };
 
-export function normalizeOcrSettings(value: unknown): OcrSettings {
-  const input = value && typeof value === "object" ? value as Record<string, unknown> : {};
-  const string = (key: keyof OcrSettings, fallback = ""): string => typeof input[key] === "string" ? input[key] as string : fallback;
-  return { mode: input.mode === "http" ? "http" : "builtin", endpoint: string("endpoint").trim(),
-    model: string("model").trim(), apiKey: string("apiKey").trim(), modelRevision: string("modelRevision", "1").trim() };
+export function normalizeOcrSettings(_value: unknown): OcrSettings {
+  return { ...DEFAULT_OCR_SETTINGS };
 }
-
-export function validateOcrService(config: OcrSettings): void {
-  let url: URL;
-  try { url = new URL(config.endpoint); } catch { throw new Error(t("ocrServiceInvalidEndpoint")); }
-  if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.hash || config.endpoint.length > 2048) {
-    throw new Error(t("ocrServiceInvalidEndpoint"));
-  }
-  if (!config.model || config.model.length > 200 || !config.modelRevision || config.modelRevision.length > 200
-    || config.apiKey.length > 8192 || /[\r\n]/u.test(config.apiKey)) throw new Error(t("ocrServiceInvalidConfig"));
+export function validateOcrService(_config: OcrSettings): void {
+  throw new Error("Remote OCR services are not included in the offline edition.");
 }
 
 export function ocrSettingsIdentity(value: unknown): string {
