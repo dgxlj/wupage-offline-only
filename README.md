@@ -24,21 +24,36 @@ WuPage 是一款不可多得的良心翻译插件，功能丰富，而且支持�
 
 ## 安装与使用
 
-**Chrome 已测试通过，Edge 理论上可以直接使用；Firefox 需要单独构建，尚未测试。**
+Chrome 已测试通过，Edge 理论上可以直接使用；Firefox 需要单独构建，尚未测试。
 
-下载源码并解压，在源码根目录执行：
+**1. 安装 Node.js**
 
-```bash
+前往 [Node.js 官网](https://nodejs.org/) 下载并安装 **Node.js 22 或更新版本**，安装时保持默认选项即可（npm 会随 Node.js 一起安装）。
+
+安装完成后，打开 PowerShell，确认安装成功：
+
+```powershell
+node -v
+npm -v
+```
+
+**2. 构建插件**
+
+下载本项目源码并解压，在源码根目录打开 PowerShell，依次执行：
+
+```powershell
 npm ci
 npm run typecheck
 npm run build
 ```
 
-构建完成后，打开 `chrome://extensions` 或 `edge://extensions`，开启开发者模式，点击「加载已解压的扩展程序」，选择生成的 `dist` 目录。
+**3. 安装插件**
 
-首次使用时，在插件的翻译服务设置中下载英语 → 简体中文等所需语言模型，下载完成即可离线翻译。
+构建成功后，打开 `chrome://extensions` 或 `edge://extensions`，开启「开发者模式」，点击「加载已解压的扩展程序」，选择生成的 `dist` 目录。
 
-如果需要翻译本地 HTML、TXT 文件，请在浏览器的扩展详情中开启 **「允许访问文件网址」**。
+首次使用时，在插件设置中下载所需的离线语言模型，下载完成后即可离线翻译。
+
+如需翻译本地 HTML、TXT 文件，请在扩展详情中开启「允许访问文件网址」。
 
 Firefox 用户可尝试执行 `npm run build:firefox`，生成 Firefox 专用构建版本。
 
