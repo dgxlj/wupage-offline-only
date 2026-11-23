@@ -24,18 +24,26 @@ WuPage 是一款不可多得的良心翻译插件，功能丰富，而且支持�
 
 ## 安装与使用
 
-在 Chrome 中已测试通过，Edge 理论上可以直接使用 Chrome 的构建；Firefox 需要单独构建，尚未测试。
+Chrome 已测试通过，Edge 理论上可以直接使用；Firefox 需要单独构建，尚未测试。
 
 **1. 安装 Node.js**
 
-前往 [Node.js 官网](https://nodejs.org/) 下载并安装 **Node.js 22 或更新版本**，安装时保持默认选项即可（npm 会随 Node.js 一起安装）。
+前往 [Node.js 官网](https://nodejs.org/) 下载并安装 **Node.js 22 或更新版本**，保持默认安装选项即可（npm 会随 Node.js 一起安装）。
 
-安装完成后，打开 PowerShell，确认安装成功：
+安装完成后，打开 PowerShell，检查版本：
 
 ```powershell
 node -v
 npm -v
 ```
+
+如果 `npm` 提示 PowerShell 禁止运行脚本，可执行：
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+```
+
+确认后重新执行 `npm -v`。
 
 **2. 构建插件**
 
@@ -55,7 +63,7 @@ npm run build
 
 如需翻译本地 HTML、TXT 文件，请在扩展详情中开启「允许访问文件网址」。
 
-Firefox 用户可尝试执行 `npm run build:firefox`，生成 Firefox 专用构建版本。
+Firefox 用户需执行 `npm run build:firefox` 单独构建。
 
 ## 说明
 
