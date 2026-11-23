@@ -1,4 +1,4 @@
-# WuPage（不可说的秘密版）
+# WuPage（不可说的秘密）版
 
 **WuPage - The Unspeakable Secret Edition · V1.3**
 
