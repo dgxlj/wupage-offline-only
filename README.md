@@ -24,7 +24,7 @@ WuPage 是一款不可多得的良心翻译插件，功能丰富，而且支持�
 
 ## 安装与使用
 
-Chrome 已测试通过，Edge 理论上可以直接使用 Chrome 的构建；Firefox 需要单独构建，尚未测试。
+在 Chrome 中已测试通过，Edge 理论上可以直接使用 Chrome 的构建；Firefox 需要单独构建，尚未测试。
 
 **1. 安装 Node.js**
 
