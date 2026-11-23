@@ -24,7 +24,7 @@ WuPage 是一款不可多得的良心翻译插件，功能丰富，而且支持�
 
 ## 安装与使用
 
-Chrome 已测试通过，Edge 理论上可以直接使用；Firefox 需要单独构建，尚未测试。
+在 Chrome 中已测试通过，Edge 理论上可以直接使用 Chrome 的构建；Firefox 需要单独构建，尚未测试。
 
 **1. 安装 Node.js**
 
@@ -57,7 +57,7 @@ npm run build
 
 **3. 安装插件**
 
-构建成功后，打开 `chrome://extensions` 或 `edge://extensions`，开启「开发者模式」，点击「加载已解压的扩展程序」，选择生成的 `dist` 目录。
+构建成功后，打开 `chrome://extensions` 或 `edge://extensions`，开启「开发者模式」，点击「加载已解压的扩展程序」，选择生成的 `dist` 目录即可。
 
 首次使用时，在插件设置中下载所需的离线语言模型，下载完成后即可离线翻译。
 
