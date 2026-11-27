@@ -63,7 +63,7 @@ npm run build
 
 如需翻译本地 HTML、TXT 文件，请在本扩展插件的“详情”中开启「允许访问文件网址」。
 
-Firefox 用户需执行 `npm run build:firefox` 单独构建。
+Firefox 用户需执行 `npm run build:firefox` 单独构建。然后在 Firefox 中用「临时载入附加组件」（Load Temporary Add-on）方式，点击 dist-firefox\manifest.json 文件载入。（重启 Firefox 后需要重新加载）
 
 ## 说明
 
